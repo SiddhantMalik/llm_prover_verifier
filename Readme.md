@@ -17,7 +17,7 @@ This project is a simple proof verification tool written in Python. It is design
 ## Getting Started
 1. **Clone the repository**
    ```bash
-   git clone <repo-url>
+   git clone https://github.com/SiddhantMalik/llm_prover_verifier
    cd proof_checker
    ```
 2. **Install dependencies**
