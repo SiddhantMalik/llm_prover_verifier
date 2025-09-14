@@ -29,7 +29,7 @@ class LLM:
 		"""
 		prompt = self._build_prompt(premises, goal)
 		response = self.client.chat.completions.create(
-			model="gpt-3.5-turbo",
+			model="gpt-5-mini",
 			messages=[{"role": "user", "content": prompt}]
 		)
 		proof_text = response.choices[0].message.content
@@ -37,7 +37,7 @@ class LLM:
 
 	def _build_prompt(self, premises, goal):
 		return (
-			"You are a proof assistant for propositional logic using only the Lukasiewicz-Church (P2) axiom system.\n"
+			"You are a professional proof solver for propositional logic using only the Lukasiewicz-Church (P2) axiom system.\n"
 			"Axiom Schemas:\n"
 			"AX1: A → (B → A)\n"
 			"AX2: (A → (B → C)) → ((A → B) → (A → C))\n"
@@ -63,6 +63,25 @@ class LLM:
 			f"Premises: {', '.join(premises)}\nGoal: {goal}\nProof:"
 		)
 
+	def formula_equiv(self, f1, f2):
+		"""
+		Checks if two formulas are equivalent by structure and value.
+		This can be extended for more rigorous logical equivalence if needed.
+		"""
+		if f1 == f2:
+			return True
+		# Remove unnecessary parentheses and spaces for comparison
+		def normalize(formula):
+			if isinstance(formula, Formula):
+				if formula.value == 'var':
+					return formula.left.replace(' ', '')
+				elif formula.value == 'not':
+					return '¬' + normalize(formula.left)
+				elif formula.value == 'imp':
+					return f"({normalize(formula.left)}→{normalize(formula.right)})"
+			return str(formula).replace(' ', '')
+		return normalize(f1) == normalize(f2)
+
 	def _parse_proof(self, proof_text):
 		# Parse proof lines from LLM output
 		lines = []
@@ -87,7 +106,7 @@ class LLM:
 			"Please revise the proof to fix the error, using only Modus Ponens and axioms AX1, AX2, AX3."
 		)
 		response = self.client.chat.completions.create(
-			model="gpt-3.5-turbo",
+			model="gpt-5-mini",
 			messages=[{"role": "user", "content": prompt}]
 		)
 		proof_text = response.choices[0].message.content
@@ -98,7 +117,7 @@ class LLMOrchestrator:
 	def __init__(self, llm):
 		self.llm = llm
 
-	def run(self, premises, goal, max_attempts=5):
+	def run(self, premises, goal, max_attempts=2):
 		for attempt in range(max_attempts):
 			proof_lines = self.llm.generate_proof(premises, goal)
 			print(f"Attempt {attempt+1}: Generated proof:")
@@ -106,7 +125,7 @@ class LLMOrchestrator:
 				print(line)
 			verifier = ProofVerifier(proof_lines)
 			try:
-				valid = verifier.verify()
+				valid = verifier.verify(goal)
 			except Exception as e:
 				valid = False
 				error_msg = str(e)
@@ -121,7 +140,34 @@ class LLMOrchestrator:
 		print("Last attempted proof:")
 		for line in proof_lines:
 			print(line)
+
+		# Extra credit: Try to generate a counterexample using the LLM
+		print("Attempting to generate a counterexample...")
+		counterexample = self.llm.generate_counterexample(premises, goal)
+		if counterexample:
+			print("COUNTEREXAMPLE FOUND:")
+			print(counterexample)
+		else:
+			print("No counterexample could be generated.")
 		return False, proof_lines
+	def generate_counterexample(self, premises, goal):
+		"""
+		Prompts the LLM to provide a counterexample for the given premises and goal.
+		Returns a string describing the counterexample, or None if not found.
+		"""
+		prompt = (
+			"The statement below may not be valid. If it is not, provide a counterexample: "
+			f"Premises: {', '.join(premises)}\nGoal: {goal}\n"
+			"If the statement is valid, reply 'No counterexample exists.' Otherwise, describe a counterexample (an assignment of truth values to variables that makes all premises true and the goal false)."
+		)
+		response = self.client.chat.completions.create(
+			model="gpt-5-mini",
+			messages=[{"role": "user", "content": prompt}]
+		)
+		result = response.choices[0].message.content.strip()
+		if result.lower().startswith("no counterexample"):
+			return None
+		return result
 
 
 # Formula representation: variable, negation, implication
@@ -242,60 +288,91 @@ class ProofVerifier:
 		self.proof_lines = proof_lines  # List of ProofLine
 		self.line_map = {line.number: line for line in proof_lines}
 
-	def verify(self):
+	def verify(self, goal=None):
+		if not self.proof_lines:
+			print("Proof is empty.")
+			return False, "Proof is empty."
 		for line in self.proof_lines:
 			just = line.justification
 			if just.lower() == 'premise':
 				continue
 			elif just.upper() == 'AX1':
 				if not match_ax1(line.formula):
-					print(f"Line {line.number} is not an instance of AX1.")
-					return False
+					error_msg = f"Line {line.number}: Formula {line.formula} is not an instance of AX1."
+					print(error_msg)
+					return False, error_msg
 			elif just.upper() == 'AX2':
 				if not match_ax2(line.formula):
-					print(f"Line {line.number} is not an instance of AX2.")
-					return False
+					error_msg = f"Line {line.number}: Formula {line.formula} is not an instance of AX2."
+					print(error_msg)
+					return False, error_msg
 			elif just.upper() == 'AX3':
 				if not match_ax3(line.formula):
-					print(f"Line {line.number} is not an instance of AX3.")
-					return False
+					error_msg = f"Line {line.number}: Formula {line.formula} is not an instance of AX3."
+					print(error_msg)
+					return False, error_msg
 			elif just.startswith('MP'):
-				# Modus Ponens: MP i, j
 				m = re.match(r'MP\s*(\d+),\s*(\d+)', just)
 				if not m:
-					print(f"Line {line.number}: Invalid MP format.")
-					return False
+					error_msg = f"Line {line.number}: Invalid MP format in justification '{just}'."
+					print(error_msg)
+					return False, error_msg
 				i, j = int(m.group(1)), int(m.group(2))
 				if i not in self.line_map or j not in self.line_map:
-					print(f"Line {line.number}: MP references missing lines.")
-					return False
+					error_msg = f"Line {line.number}: MP references missing lines {i} or {j}."
+					print(error_msg)
+					return False, error_msg
 				phi = self.line_map[i].formula
 				imp = self.line_map[j].formula
 				if imp.value != 'imp' or imp.left != phi or imp.right != line.formula:
-					print(f"Line {line.number}: MP does not match formulas.")
-					return False
+					error_msg = (f"Line {line.number}: MP does not match formulas. "
+								f"Expected {phi} and {phi} → {line.formula}, got {imp}.")
+					print(error_msg)
+					return False, error_msg
 			else:
-				print(f"Line {line.number}: Unknown justification '{just}'.")
-				return False
+				error_msg = f"Line {line.number}: Unknown justification '{just}'."
+				print(error_msg)
+				return False, error_msg
+		# Check that the last line matches the goal
+		if goal is not None:
+			last_formula = self.proof_lines[-1].formula
+			if not Formula.__eq__(last_formula, parse_formula(goal)):
+				print(f"Proof does not reach the goal: {goal}")
+				return False, f"Proof does not reach the goal: {goal}"
 		print("Proof is valid.")
-		return True
-
+		return True, None
+	
 # Example usage
 if __name__ == "__main__":
 	# Example: LLM-assisted proof generation and verification
 	# Premises and goal
+	# premises = []
+	# goal = []
+ 
 	premises = ['P → Q', 'Q → R']
-	goal = 'P → R'
+	goal = 'R → P'
+
 
 	# Initialize LLM and orchestrator
 	llm = LLM()
 	orchestrator = LLMOrchestrator(llm)
 
+
 	# Run proof generation and verification
 	valid, proof_lines = orchestrator.run(premises, goal)
 
-	print("Final outcome:", "VALID" if valid else "FAILED")
-	print("Proof:")
-	for line in proof_lines:
-		print(line)
-
+	if valid:
+		print("Final outcome: VALID")
+		print("Proof:")
+		for line in proof_lines:
+			print(line)
+	else:
+		print("Final outcome: FAILED")
+		print("No valid proof found.")
+		# Try to generate a counterexample and print it
+		counterexample = llm.generate_counterexample(premises, goal)
+		if counterexample:
+			print("Counterexample:")
+			print(counterexample)
+		else:
+			print("No counterexample could be generated.")
