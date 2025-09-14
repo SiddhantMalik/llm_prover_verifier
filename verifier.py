@@ -20,12 +20,6 @@ class LLM:
 			except Exception:
 				raise ValueError("OpenAI API key not found. Set OPENAI_API_KEY or create openai_key.txt.")
 		self.client = OpenAI(api_key=self.api_key)
-		# Maintain conversation history for iterative proof improvement
-		self.conversation_history = []
-	
-	def reset_conversation(self):
-		"""Reset conversation history for a new proof problem."""
-		self.conversation_history = []
 
 	def generate_proof(self, premises, goal):
 		"""
@@ -33,20 +27,11 @@ class LLM:
 		Returns proof as list of lines: [(number, formula, justification)]
 		"""
 		prompt = self._build_prompt(premises, goal)
-		
-		# Initialize conversation history if this is the first attempt
-		if not self.conversation_history:
-			self.conversation_history = [{"role": "user", "content": prompt}]
-		
 		response = self.client.chat.completions.create(
-			model="gpt-4o-mini",
-			messages=self.conversation_history
+			model="gpt-5-mini",
+			messages=[{"role": "user", "content": prompt}]
 		)
 		proof_text = response.choices[0].message.content
-		
-		# Add the response to conversation history
-		self.conversation_history.append({"role": "assistant", "content": proof_text})
-		
 		return self._parse_proof(proof_text)
 
 	def _build_prompt(self, premises, goal):
@@ -108,40 +93,22 @@ class LLM:
 				lines.append(ProofLine(number, formula, justification))
 		return lines
 
-	def repair_proof(self, premises, goal, previous_proof, error_msg, detailed_error_analysis=None):
-		# Build a comprehensive error feedback message
+	def repair_proof(self, premises, goal, previous_proof, error_msg):
+		# Prompt LLM to revise proof
 		prev_text = '\n'.join([
 			f"{line.number}: {line.formula} [{line.justification}]" for line in previous_proof
 		])
-		
-		# Create detailed feedback message
-		feedback_msg = f"Your previous proof was invalid. Here's what went wrong:\n\nError: {error_msg}\n"
-		
-		if detailed_error_analysis:
-			feedback_msg += f"\nDetailed Analysis:\n{detailed_error_analysis}\n"
-		
-		feedback_msg += f"\nOriginal Problem:\nPremises: {', '.join(premises)}\nGoal: {goal}\n"
-		feedback_msg += f"\nYour Previous Attempt:\n{prev_text}\n"
-		feedback_msg += "\nPlease analyze the error carefully and provide a corrected proof. "
-		feedback_msg += "Remember to:\n"
-		feedback_msg += "1. Use only the axioms AX1, AX2, AX3 and Modus Ponens (MP)\n"
-		feedback_msg += "2. Ensure each line is properly justified\n"
-		feedback_msg += "3. Check that MP applications match the correct formula patterns\n"
-		feedback_msg += "4. Make sure the final line matches the goal exactly\n\n"
-		feedback_msg += "Provide the corrected proof in the same format: <number>: <formula> [<justification>]"
-		
-		# Add the feedback to conversation history
-		self.conversation_history.append({"role": "user", "content": feedback_msg})
-		
+		prompt = (
+			"Your previous proof was invalid. Error: " + error_msg + "\n"
+			"Premises: " + ', '.join(premises) + "\nGoal: " + goal + "\n"
+			"Previous proof:\n" + prev_text + "\n"
+			"Please revise the proof to fix the error, using only Modus Ponens and axioms AX1, AX2, AX3."
+		)
 		response = self.client.chat.completions.create(
-			model="gpt-4o-mini",  
-			messages=self.conversation_history
+			model="gpt-5-mini",
+			messages=[{"role": "user", "content": prompt}]
 		)
 		proof_text = response.choices[0].message.content
-		
-		# Add the response to conversation history
-		self.conversation_history.append({"role": "assistant", "content": proof_text})
-		
 		return self._parse_proof(proof_text)
 
 	def generate_counterexample(self, premises, goal):
@@ -170,41 +137,24 @@ class LLMOrchestrator:
 		self.llm = llm
 
 	def run(self, premises, goal, max_attempts=3):
-		# Reset conversation history for this new problem
-		self.llm.reset_conversation()
-		
 		for attempt in range(max_attempts):
-			if attempt == 0:
-				proof_lines = self.llm.generate_proof(premises, goal)
-			else:
-				# For subsequent attempts, the proof_lines will come from repair_proof
-				pass
-			
+			proof_lines = self.llm.generate_proof(premises, goal)
 			print(f"Attempt {attempt+1}: Generated proof:")
 			for line in proof_lines:
 				print(line)
-			
 			verifier = ProofVerifier(proof_lines)
 			try:
-				valid, error_msg, detailed_analysis = verifier.verify(goal)
+				valid, error_msg = verifier.verify(goal)
 			except Exception as e:
 				valid = False
 				error_msg = str(e)
-				detailed_analysis = f"Exception occurred during verification: {str(e)}"
-				
 			if valid and error_msg is None:
 				print("VALID PROOF FOUND:")
 				return True, proof_lines
 			else:
 				print(f"Attempt {attempt+1}: Proof invalid. Repairing...")
 				print(f"Error: {error_msg}")
-				if detailed_analysis:
-					print(f"Detailed Analysis: {detailed_analysis}")
-				
-				# Don't repair on the last attempt
-				if attempt < max_attempts - 1:
-					proof_lines = self.llm.repair_proof(premises, goal, proof_lines, error_msg, detailed_analysis)
-		
+				proof_lines = self.llm.repair_proof(premises, goal, proof_lines, error_msg)
 		print("FAILED: No valid proof found.")
 		print("Last attempted proof:")
 		for line in proof_lines:
@@ -341,10 +291,7 @@ class ProofVerifier:
 	def verify(self, goal=None):
 		if not self.proof_lines or len(self.proof_lines) == 0:
 			print("Proof is empty.")
-			return False, "Proof is empty.", "The proof contains no lines. You need to provide at least one line to prove the goal."
-		
-		detailed_analysis = []
-		
+			return False, "Proof is empty."
 		for line in self.proof_lines:
 			just = line.justification
 			if just.lower() == 'premise':
@@ -352,68 +299,48 @@ class ProofVerifier:
 			elif just.upper() == 'AX1':
 				if not match_ax1(line.formula):
 					error_msg = f"Line {line.number}: Formula {line.formula} is not an instance of AX1."
-					analysis = f"AX1 has the form A → (B → A). Your formula {line.formula} does not match this pattern. Check if you have the correct structure with proper variable substitutions."
-					detailed_analysis.append(analysis)
 					print(error_msg)
-					return False, error_msg, '\n'.join(detailed_analysis)
+					return False, error_msg
 			elif just.upper() == 'AX2':
 				if not match_ax2(line.formula):
 					error_msg = f"Line {line.number}: Formula {line.formula} is not an instance of AX2."
-					analysis = f"AX2 has the form (A → (B → C)) → ((A → B) → (A → C)). Your formula {line.formula} does not match this pattern. Ensure you have the correct nested implication structure."
-					detailed_analysis.append(analysis)
 					print(error_msg)
-					return False, error_msg, '\n'.join(detailed_analysis)
+					return False, error_msg
 			elif just.upper() == 'AX3':
 				if not match_ax3(line.formula):
 					error_msg = f"Line {line.number}: Formula {line.formula} is not an instance of AX3."
-					analysis = f"AX3 has the form (¬B → ¬A) → (A → B). Your formula {line.formula} does not match this pattern. Check that you have the correct contrapositive structure with proper negations."
-					detailed_analysis.append(analysis)
 					print(error_msg)
-					return False, error_msg, '\n'.join(detailed_analysis)
+					return False, error_msg
 			elif just.startswith('MP'):
 				m = re.match(r'MP\s*(\d+),\s*(\d+)', just)
 				if not m:
 					error_msg = f"Line {line.number}: Invalid MP format in justification '{just}'."
-					analysis = f"Modus Ponens should be written as 'MP i, j' where i and j are line numbers. Your format '{just}' is incorrect."
-					detailed_analysis.append(analysis)
 					print(error_msg)
-					return False, error_msg, '\n'.join(detailed_analysis)
+					return False, error_msg
 				i, j = int(m.group(1)), int(m.group(2))
 				if i not in self.line_map or j not in self.line_map:
 					error_msg = f"Line {line.number}: MP references missing lines {i} or {j}."
-					analysis = f"You referenced lines {i} and {j} in your MP justification, but one or both of these lines don't exist in your proof. Check your line numbering."
-					detailed_analysis.append(analysis)
 					print(error_msg)
-					return False, error_msg, '\n'.join(detailed_analysis)
+					return False, error_msg
 				phi = self.line_map[i].formula
 				imp = self.line_map[j].formula
 				if imp.value != 'imp' or imp.left != phi or imp.right != line.formula:
 					error_msg = (f"Line {line.number}: MP does not match formulas. "
-								f"Expected {phi} and {phi} → {line.formula}, but got {phi} and {imp}.")
-					analysis = f"For MP to work, you need φ and φ → ψ to infer ψ. You have:\nLine {i}: {phi}\nLine {j}: {imp}\nBut line {j} should be {phi} → {line.formula} for MP to produce {line.formula}."
-					detailed_analysis.append(analysis)
+								f"Expected {phi} and {phi} → {line.formula}, got {imp}.")
 					print(error_msg)
-					return False, error_msg, '\n'.join(detailed_analysis)
+					return False, error_msg
 			else:
 				error_msg = f"Line {line.number}: Unknown justification '{just}'."
-				analysis = f"'{just}' is not a valid justification. Valid justifications are: Premise, AX1, AX2, AX3, or MP i, j (where i and j are line numbers)."
-				detailed_analysis.append(analysis)
 				print(error_msg)
-				return False, error_msg, '\n'.join(detailed_analysis)
-		
+				return False, error_msg
 		# Check that the last line matches the goal
 		if goal is not None:
 			last_formula = self.proof_lines[-1].formula
-			goal_formula = parse_formula(goal)
-			if not Formula.__eq__(last_formula, goal_formula):
-				error_msg = f"Proof does not reach the goal: {goal}"
-				analysis = f"Your proof ends with {last_formula}, but the goal is {goal_formula}. The final line of your proof must exactly match the goal."
-				detailed_analysis.append(analysis)
-				print(error_msg)
-				return False, error_msg, '\n'.join(detailed_analysis)
-		
+			if not Formula.__eq__(last_formula, parse_formula(goal)):
+				print(f"Proof does not reach the goal: {goal}")
+				return False, f"Proof does not reach the goal: {goal}"
 		print("Proof is valid.")
-		return True, None, None
+		return True, None
 	
 # Example usage
 if __name__ == "__main__":
@@ -423,13 +350,13 @@ if __name__ == "__main__":
 	# goal = []
  
 	premises = [
-		'P → (Q → R)',
-		'S → P',
-		'T → Q',
-		'R → U',
-		'¬U → ¬S'
+		'P → Q',
+		'Q → R',
+		'R → S',
+		'S → T',
+		'T → U'
 		]
-	goal = 'S → (T → U)'
+	goal = 'P → U'
 
 	# Initialize LLM and orchestrator
 	llm = LLM()
