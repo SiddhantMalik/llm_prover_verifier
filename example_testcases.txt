@@ -26,74 +26,168 @@ Proof:
 
 Example 2
 premises = [
-    'P → (Q → R)',
-    'S → P',
-    'T → Q',
-    'R → U',
-    '¬U → ¬S'
+    'P → Q',
+    'Q → R',
+    'R → S',
+    'S → T',
+    'T → U'
     ]
-goal = 'S → (T → U)'
+goal = 'P → U'
 
 Attempt 1: Generated proof:
-1: (P → (Q → R)) [Premise]
-2: (S → P) [Premise]
-3: (T → Q) [Premise]
-4: (R → U) [Premise]
-5: ¬(U → ¬S) [Premise]
-6: (¬(U → ¬S) → (S → U)) [AX3]
-7: (S → U) [MP 5, 6]
-8: (U → (T → U)) [AX1]
-9: ((U → (T → U)) → (S → (U → (T → U)))) [AX1]
-10: (S → (U → (T → U))) [MP 8, 9]
-11: ((S → (U → (T → U))) → ((S → U) → (S → (T → U)))) [AX2]
-12: ((S → U) → (S → (T → U))) [MP 10, 11]
-13: (S → (T → U)) [MP 7, 12]
-Line 6: Formula (¬(U → ¬S) → (S → U)) is not an instance of AX3.
+1: (P → Q) [Premise]
+2: (Q → R) [Premise]
+3: (R → S) [Premise]
+4: (S → T) [Premise]
+5: (T → U) [Premise]
+6: ((Q → R) → (P → (Q → R))) [AX1]
+7: (P → (Q → R)) [MP 2, 6]
+8: ((P → (Q → R)) → ((P → Q) → (P → R))) [AX2]
+9: ((P → Q) → (P → R)) [MP 7, 8]
+10: (P → R) [MP 1, 9]
+11: ((R → S) → (P → (R → S))) [AX1]
+12: (P → (R → S)) [MP 3, 11]
+13: ((P → (R → S)) → ((P → R) → (P → S))) [AX2]
+14: ((P → R) → (P → S)) [MP 12, 13]
+15: (P → S) [MP 10, 14]
+16: ((S → T) → (P → (S → T))) [AX1]
+17: (P → (S → T)) [MP 4, 16]
+18: ((P → (S → T)) → ((P → S) → (P → T))) [AX2]
+19: ((P → S) → (P → T)) [MP 17, 18]
+20: (P → T) [MP 15, 19]
+21: ((T → U) → (P → (T → U))) [AX1]
+22: (P → (T → U)) [MP 5, 21]
+23: ((P → (T → U)) → ((P → T) → (P → U))) [AX2]
+24: ((P → T) → (P → U)) [MP 22, 23]
+25: (P → U) [MP 20, 24]
+Proof is valid.
 VALID PROOF FOUND:
 Final outcome: VALID
 Proof:
-1: (P → (Q → R)) [Premise]
-2: (S → P) [Premise]
-3: (T → Q) [Premise]
-4: (R → U) [Premise]
-5: ¬(U → ¬S) [Premise]
-6: (¬(U → ¬S) → (S → U)) [AX3]
-7: (S → U) [MP 5, 6]
-8: (U → (T → U)) [AX1]
-9: ((U → (T → U)) → (S → (U → (T → U)))) [AX1]
-10: (S → (U → (T → U))) [MP 8, 9]
-11: ((S → (U → (T → U))) → ((S → U) → (S → (T → U)))) [AX2]
-12: ((S → U) → (S → (T → U))) [MP 10, 11]
-13: (S → (T → U)) [MP 7, 12]
+1: (P → Q) [Premise]
+2: (Q → R) [Premise]
+3: (R → S) [Premise]
+4: (S → T) [Premise]
+5: (T → U) [Premise]
+6: ((Q → R) → (P → (Q → R))) [AX1]
+7: (P → (Q → R)) [MP 2, 6]
+8: ((P → (Q → R)) → ((P → Q) → (P → R))) [AX2]
+9: ((P → Q) → (P → R)) [MP 7, 8]
+10: (P → R) [MP 1, 9]
+11: ((R → S) → (P → (R → S))) [AX1]
+12: (P → (R → S)) [MP 3, 11]
+13: ((P → (R → S)) → ((P → R) → (P → S))) [AX2]
+14: ((P → R) → (P → S)) [MP 12, 13]
+15: (P → S) [MP 10, 14]
+16: ((S → T) → (P → (S → T))) [AX1]
+17: (P → (S → T)) [MP 4, 16]
+18: ((P → (S → T)) → ((P → S) → (P → T))) [AX2]
+19: ((P → S) → (P → T)) [MP 17, 18]
+20: (P → T) [MP 15, 19]
+21: ((T → U) → (P → (T → U))) [AX1]
+22: (P → (T → U)) [MP 5, 21]
+23: ((P → (T → U)) → ((P → T) → (P → U))) [AX2]
+24: ((P → T) → (P → U)) [MP 22, 23]
+25: (P → U) [MP 20, 24]
 
 
-Example 3
+Example 3 (LLm wasn't able to make a valid proof for this and also wasnt able to find counterexample to show it false)
 premises = ['¬S → ¬R', '¬R → ¬Q', '¬Q → ¬P']
 goal = 'P → S'
+
+Attempt 1: Generated proof:
+1: ¬(S → ¬R) [Premise]
+2: ¬(R → ¬Q) [Premise]
+3: ¬(Q → ¬P) [Premise]
+4: (¬(S → ¬R) → (R → S)) [AX3]
+5: (R → S) [MP 1, 4]
+6: (¬(R → ¬Q) → (Q → R)) [AX3]
+7: (Q → R) [MP 2, 6]
+8: (¬(Q → ¬P) → (P → Q)) [AX3]
+9: (P → Q) [MP 3, 8]
+10: ((Q → R) → (P → (Q → R))) [AX1]
+11: (P → (Q → R)) [MP 7, 10]
+12: ((P → (Q → R)) → ((P → Q) → (P → R))) [AX2]
+13: ((P → Q) → (P → R)) [MP 11, 12]
+14: (P → R) [MP 9, 13]
+15: ((R → S) → (P → (R → S))) [AX1]
+16: (P → (R → S)) [MP 5, 15]
+17: ((P → (R → S)) → ((P → R) → (P → S))) [AX2]
+18: ((P → R) → (P → S)) [MP 16, 17]
+19: (P → S) [MP 14, 18]
+Line 4: Formula (¬(S → ¬R) → (R → S)) is not an instance of AX3.
+Attempt 1: Proof invalid. Repairing...
+Error: Line 4: Formula (¬(S → ¬R) → (R → S)) is not an instance of AX3.
+Attempt 2: Generated proof:
+1: ¬(S → ¬R) [Premise]
+2: ¬(R → ¬Q) [Premise]
+3: ¬(Q → ¬P) [Premise]
+4: (¬(R → ¬Q) → ¬(S → ¬(R → ¬Q))) [AX1]
+5: ¬(S → ¬(R → ¬Q)) [MP 2, 4]
+6: (¬(S → ¬(R → ¬Q)) → (¬(S → ¬R) → ¬(S → ¬Q))) [AX2]
+7: (¬(S → ¬R) → ¬(S → ¬Q)) [MP 5, 6]
+8: ¬(S → ¬Q) [MP 1, 7]
+9: (¬(Q → ¬P) → ¬(S → ¬(Q → ¬P))) [AX1]
+10: ¬(S → ¬(Q → ¬P)) [MP 3, 9]
+11: (¬(S → ¬(Q → ¬P)) → (¬(S → ¬Q) → ¬(S → ¬P))) [AX2]
+12: (¬(S → ¬Q) → ¬(S → ¬P)) [MP 10, 11]
+13: ¬(S → ¬P) [MP 8, 12]
+14: (¬(S → ¬P) → (P → S)) [AX3]
+15: (P → S) [MP 13, 14]
+Line 4: Formula (¬(R → ¬Q) → ¬(S → ¬(R → ¬Q))) is not an instance of AX1.
+Attempt 2: Proof invalid. Repairing...
+Error: Line 4: Formula (¬(R → ¬Q) → ¬(S → ¬(R → ¬Q))) is not an instance of AX1.
+Attempt 3: Generated proof:
+1: ¬(S → ¬R) [Premise]
+2: ¬(R → ¬Q) [Premise]
+3: ¬(Q → ¬P) [Premise]
+4: (¬(S → ¬R) → (R → S)) [AX3]
+5: (R → S) [MP 1, 4]
+6: (¬(R → ¬Q) → (Q → R)) [AX3]
+7: (Q → R) [MP 2, 6]
+8: (¬(Q → ¬P) → (P → Q)) [AX3]
+9: (P → Q) [MP 3, 8]
+10: ((Q → R) → (P → (Q → R))) [AX1]
+11: (P → (Q → R)) [MP 7, 10]
+12: ((P → (Q → R)) → ((P → Q) → (P → R))) [AX2]
+13: ((P → Q) → (P → R)) [MP 11, 12]
+14: (P → R) [MP 9, 13]
+15: ((R → S) → (P → (R → S))) [AX1]
+16: (P → (R → S)) [MP 5, 15]
+17: ((P → (R → S)) → ((P → R) → (P → S))) [AX2]
+18: ((P → R) → (P → S)) [MP 16, 17]
+19: (P → S) [MP 14, 18]
+Line 4: Formula (¬(S → ¬R) → (R → S)) is not an instance of AX3.
+Attempt 3: Proof invalid. Repairing...
+Error: Line 4: Formula (¬(S → ¬R) → (R → S)) is not an instance of AX3.
+FAILED: No valid proof found.
+Last attempted proof:
+Attempting to generate a counterexample...
+No counterexample could be generated.
+Final outcome: FAILED
+No valid proof found.
+No Counterexample can be generated
+
 
 Example 4
 premises = []
 goal = 'P → P'
 
 Attempt 1: Generated proof:
-1: ¬(P → (¬(P → ¬P) → ¬P)) [AX1]
-2: ¬(P → ¬(P → ¬P)) [AX1]
-3: (¬(P → (¬(P → ¬P) → ¬P)) → (¬(P → ¬(P → ¬P)) → ¬(P → ¬P))) [AX2]
-4: (¬(P → ¬(P → ¬P)) → ¬(P → ¬P)) [MP 1,3]
-5: ¬(P → ¬P) [MP 2,4]
-6: (¬(P → ¬P) → (P → P)) [AX3]
-7: (P → P) [MP 5,6]
-Line 1: Formula ¬(P → (¬(P → ¬P) → ¬P)) is not an instance of AX1.
+1: (P → ((P → P) → P)) [AX1]
+2: (P → (P → P)) [AX1]
+3: ((P → ((P → P) → P)) → ((P → (P → P)) → (P → P))) [AX2]
+4: ((P → (P → P)) → (P → P)) [MP 1, 3]
+5: (P → P) [MP 2, 4]
+Proof is valid.
 VALID PROOF FOUND:
 Final outcome: VALID
 Proof:
-1: ¬(P → (¬(P → ¬P) → ¬P)) [AX1]
-2: ¬(P → ¬(P → ¬P)) [AX1]
-3: (¬(P → (¬(P → ¬P) → ¬P)) → (¬(P → ¬(P → ¬P)) → ¬(P → ¬P))) [AX2]
-4: (¬(P → ¬(P → ¬P)) → ¬(P → ¬P)) [MP 1,3]
-5: ¬(P → ¬P) [MP 2,4]
-6: (¬(P → ¬P) → (P → P)) [AX3]
-7: (P → P) [MP 5,6]
+1: (P → ((P → P) → P)) [AX1]
+2: (P → (P → P)) [AX1]
+3: ((P → ((P → P) → P)) → ((P → (P → P)) → (P → P))) [AX2]
+4: ((P → (P → P)) → (P → P)) [MP 1, 3]
+5: (P → P) [MP 2, 4]
 
 Example 5
 premises = ['P → Q', 'Q → R', 'R → S', 'S → T']
@@ -142,3 +236,35 @@ Proof:
 17: ((P → (S → T)) → ((P → S) → (P → T))) [AX2]
 18: ((P → S) → (P → T)) [MP 16, 17]
 19: (P → T) [MP 14, 18]
+
+Example 6 ( it would do the process for n times but in this case i had set n = 1 for saving tokens while runnning)
+premises = ['P → Q', 'Q → R']
+goal = 'R → P'
+
+
+Attempt 1: Generated proof:
+Proof is empty.
+Attempt 1: Proof invalid. Repairing...
+Error: Proof is empty.
+FAILED: No valid proof found.
+Last attempted proof:
+Attempting to generate a counterexample...
+COUNTEREXAMPLE FOUND:
+Not valid.
+
+Counterexample: let P = False, Q = False, R = True.
+- P → Q is True (False → False = True).
+- Q → R is True (False → True = True).
+- R → P is False (True → False = False).
+
+Both premises are true while the conclusion is false.
+Final outcome: FAILED
+No valid proof found.
+Counterexample:
+Counterexample: let P = False, Q = False, R = True.
+
+- P → Q is True (False → False = True).
+- Q → R is True (False → True = True).
+- R → P is False (True → False = False).
+
+Thus both premises are true while the goal is false.
